@@ -99,20 +99,29 @@ def get_citation_statistics(real_name, dblp_url):
 # Try to find scientific has a dedicated scholar publication page
 def get_user_ID_and_coauthors(real_name, dblp_url):
 
-    # Initialize and go tht the dblp page of the scientist (if it exists)
+    # Initialize and go to the dblp page of the scientist (if it exists)
     global user_agent
     search_name, last_name, dblp_url = check_for_special_characters(real_name, dblp_url)
-    dblp_req  = Request(dblp_url, headers={'User-Agent': user_agent})
+    dblp_req = Request(dblp_url, headers={'User-Agent': user_agent})
     try:
         dblp_src = urlopen(dblp_req).read().decode('utf-8')
-    except HTTPError:
-        return None, []
 
+    # In rare cases, the scientist name was changed and is linked in the 404 error page
+    except HTTPError as error:
+        error_src  = error.read().decode('utf-8')
+        key_string = 'Did you mean:</p><ul><li><a href="'
+        if key_string in error_src:
+            dblp_url = error_src.split(key_string)[1].split('">')[0]
+            dblp_req = Request(dblp_url, headers={'User-Agent': user_agent})
+            dblp_src = urlopen(dblp_req).read().decode('utf-8')
+        else:
+            return None, []
+        
     # Find all coauthors for this scientist
     try:
         coauthors = [p.split('">')[1].split('</')[0] for p in dblp_src.split('"coauthor-section"')[1].split('"person"')[1:]]
     except IndexError:
-        coauthors = [] 
+        coauthors = []
 
     # Search for this scientist's last publication with first authorship on google scholar
     try:
@@ -126,11 +135,15 @@ def get_user_ID_and_coauthors(real_name, dblp_url):
     # Try to connect to google scholar, avoiding robot issues
     scholar_says_Im_robot = True
     stop_trying_count     = 0
-    while(scholar_says_Im_robot):
+    while scholar_says_Im_robot:
+
+        # Stops abusing google scholar in case it is too angry
         if stop_trying_count > 5:
             print('Already many IP were tried... Try to find a manual solution!')
             exit()
         stop_trying_count += 1
+
+        # Tries to open the scholar url obtained from the dblp wep page
         try:
             scholar_req = Request(scholar_url + '+' + unidecode(last_name), headers={'User-Agent': user_agent})
             scholar_src = urlopen(scholar_req).read().decode('utf-8')
@@ -138,6 +151,8 @@ def get_user_ID_and_coauthors(real_name, dblp_url):
         except UnicodeEncodeError as error:
             print('The last name induced an url encoding error. Skipping this scientist...')
             scholar_src = []
+
+        # Check for 429 error (too many requests), in which case the VPN IP address is changed
         except HTTPError:
             print('Google scholar HTTPError 429: IP address is changed...')
             user_agent = random.choice(user_agents)
@@ -148,6 +163,8 @@ def get_user_ID_and_coauthors(real_name, dblp_url):
                 print('NordVPN is not installed on this computer. Try to find a manual solution!')
                 exit()
             continue
+
+        # Check for the human/robot captcha test, in which case the VPN IP address is changed
         if '"gs_captcha_f"' in scholar_src:
             print('Google scholar Human/Robot test: IP address is changed...')
             user_agent = random.choice(user_agents)
@@ -158,26 +175,18 @@ def get_user_ID_and_coauthors(real_name, dblp_url):
                 print('NordVPN is not installed on this computer. Try to find a manual solution!')
                 exit()
             continue
+
+        # If everything went fine, continue below this while loop
         scholar_says_Im_robot = False
 
     # Search for an existing scholar ID of the scientist
     user_ID = None
     try:
-        # crucial_str = scholar_src.split('<div class="gs_a">')[1]
-        # crucial_str = re.split(last_name.lower(), crucial_str, flags=re.IGNORECASE)[0]
-        # crucial_str = crucial_str.split(',')[-1].split('">')[0]
-        # if len(crucial_str) > 62 and crucial_str[-62:-46] == '/citations?user=':
-        #     user_ID = crucial_str[-46:-34]
-        # if len(crucial_str) > 49 and crucial_str[-49:-33] == '/citations?user=':
-        #     user_ID = crucial_str[-33:-21]
-        # if len(crucial_str) > 52 and crucial_str[-52:-36] == '/citations?user=':
-        #     user_ID = crucial_str[-36:-24]
         crucial_str = scholar_src.split('<div class="gs_a">')[1]
         crucial_str = re.split(last_name.lower(), crucial_str, flags=re.IGNORECASE)[0]
         crucial_str = crucial_str.split(',')[-1].split('">')[0].split('&amp;hl=')[0]
         if len(crucial_str) > 28 and crucial_str[-28:-12] == '/citations?user=':
             user_ID = crucial_str[-12:]
-        # in case: (South Korea) crucial_str = '<a href="/citations?user=DTH5uSEAAAAJ&amp;hl=zh-TW&amp;oi=sra'
     except:
         print('Error in the search, probably because the scientist has no scholar page.')
 
@@ -200,7 +209,8 @@ def check_for_special_characters(real_name, dblp_url):
         probe_dblp[probe_dblp.index('=')+1] = probe_dblp[probe_dblp.index('=')+1].capitalize()
         probe_name[probe_name.index("'")+1] = probe_name[probe_name.index("'")+1].capitalize()
         probe_name[probe_name.index("'")]   = '%27'
-        last_name[ last_name .index("'")]   = '&#39;'
+        if '' in last_name:
+            last_name[ last_name .index("'")]   = '&#39;'
 
     # Special case for dashes
     if '-' in real_name:
@@ -226,42 +236,3 @@ def check_for_special_characters(real_name, dblp_url):
     last_name   = ''.join(last_name)
     dblp_url    = ''. join(probe_dblp)
     return search_name, last_name, dblp_url
-
-
-# Debug 0
-def get_user_ID_debug(real_name, scholar_src):
-    
-    # # Look for an existing scholar ID of the scientist
-    # last_name   = real_name.split(' ')[-1]
-    # crucial_str = scholar_src.split(last_name)[0].split('">')[-2]
-    # print(crucial_str[-62:-46])
-    # if len(crucial_str) > 49 and crucial_str[-62:-46] == '/citations?user=':
-    #     print(crucial_str[-46:-34])
-    #     print(len(crucial_str[-46:-34]))
-
-    for line in scholar_src.split('gsc_g_al')[6:-1]:
-        print(int(line.split('z-index:')[1].split('">')[0]))
-
-
-# Debug 1
-def debug_function(years, citations):
-
-    # Return both arrays to the main program
-    years_to_write = range(1980, 2020)
-    cites_to_write = [0 for y in years_to_write]
-    for i, y in enumerate(years_to_write):
-        if y in years:
-            cites_to_write[i] = citations[years.index(y)]
-    print(years_to_write)
-    print(cites_to_write)
-
-
-# Debug
-if __name__ == '__main__':
-    with open('debug_source.txt', 'r') as file:
-        # get_user_ID_debug(real_name='Kasper Larsen', scholar_src=''.join(file.readlines()))
-        # debug_function([2012, 2013, 2014, 2015], [2, 5, 14, 20])
-        # print(check_for_special_characters('Sonja Schär', 'http://dblp.uni-trier.de/pers/hd/s/Sch==r:Sonja.html'))
-        # print(check_for_special_characters('Santiago Ontañón', 'http://dblp.uni-trier.de/pers/hd/o/Onta====n:Santiago.html'))
-        print(check_for_special_characters('Santiãgo De Palamé', 'http://dblp.uni-trier.de/pers/hd/p/Palam==:Santi==go_De.html'))
-        # print(check_for_special_characters('Sarah Chasins', 'http://dblp.uni-trier.de/pers/hd/c/Chasins:Sarah.html'))
