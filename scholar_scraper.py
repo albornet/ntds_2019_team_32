@@ -1,29 +1,13 @@
 import random
 import time
 import re
-import os
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 from unidecode import unidecode
 from nordvpn_randomizer import logIn, chooseRandom, getCountries
-user_agents  = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Safari/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36', 
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Safari/605.1.15', 
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:70.0) Gecko/20100101 Firefox/70.0',
-                'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
-                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; rv:68.0) Gecko/20100101 Firefox/68.0  Firefox 68.0',
-                'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:70.0) Gecko/20100101 Firefox/70.0',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36']
-user_agent   = user_agents[0]
-delays       = [7, 4, 6, 2, 10, 19]
-countries    = getCountries()[1:]
-countries[0] = countries[0][1:]
+
+
+# Used for some scientists in the list that have special characters in their names
 translator   = {'á': ('%C3%A1', '=aacute='),  #, '\xc3\xa1'),
                 'é': ('%C3%A9', '=eacute='),  #, '\xc3\xa9'),
                 'í': ('%C3%AD', '=iacute='),  #, '\xc3\xad'),
@@ -43,6 +27,28 @@ translator   = {'á': ('%C3%A1', '=aacute='),  #, '\xc3\xa1'),
                 'õ': ('%C3%B5', '=otilde='),  #, '\xc3\xb5'),
                 'ñ': ('%C3%B1', '=ntilde=')}  #, '\xc3\xb1')}
 
+# List of different "user agents" (mimics browser usage)
+user_agents  = ['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:71.0) Gecko/20100101 Firefox/71.0',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36', 
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Safari/605.1.15', 
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:70.0) Gecko/20100101 Firefox/70.0',
+                'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; rv:68.0) Gecko/20100101 Firefox/68.0  Firefox 68.0',
+                'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:70.0) Gecko/20100101 Firefox/70.0',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36']
+
+# Initialize some useful variables
+user_agent   = user_agents[0]        # Initialize user agent (changed if human/robot test)
+delays       = [7, 4, 6, 2, 10, 19]  # Random delays between url requests, to avoid overloading google servers (and avoid human/robot test)
+countries    = getCountries()[1:]    # List of countries for different IPs (changed if human/robot test), using NordVPN
+countries[0] = countries[0][1:]      # The first country (Albania) starts with a weird character
+
 
 # Get number of citations per each year, for any scientist featured on google scholar
 def get_citation_statistics(real_name, dblp_url):
@@ -57,7 +63,7 @@ def get_citation_statistics(real_name, dblp_url):
         scholar_src  =  urlopen(scholar_req).read().decode('utf-8')
         time.sleep(random.choice(delays))
 
-        # Get the number of citations with the correspond years
+        # Get [number of citations vs. year] from the citation histogram of the scientist's scholar page
         try:
             max_year  = max([int(line.split('">'      )[1].split('</')[0]) for line in scholar_src.split('gsc_g_t' )[3:]])
             citations =     [int(line.split('">'      )[1].split('</')[0]) for line in scholar_src.split('gsc_g_al')[6:]]

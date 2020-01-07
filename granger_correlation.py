@@ -1,10 +1,11 @@
 import pandas
 import numpy
 import csv
+import os
 import matplotlib.pyplot as plt
 import warnings
 from scipy.stats               import pearsonr
-from statsmodels.tsa.stattools import grangercausalitytests, ccf
+from statsmodels.tsa.stattools import grangercausalitytests
 from multiprocessing           import Pool, cpu_count
 
 
@@ -54,12 +55,11 @@ if __name__ == '__main__':
     twitter_time_series = []
     scholar_time_series = []
     for i, idx in enumerate(twitter_data['id']):
-        if 1:  #i < 200:
-            scholar_t = numpy.array(scholar_data.loc[scholar_data['id'] == idx])[0,-14:]
-            if sum(scholar_t) > 0:
-                twitter_t = numpy.array(twitter_data.loc[twitter_data['id'] == idx])[0,-14:]
-                twitter_time_series.append(twitter_t)
-                scholar_time_series.append(scholar_t)
+        scholar_t = numpy.array(scholar_data.loc[scholar_data['id'] == idx])[0,-14:]
+        if sum(scholar_t) > 0:
+            twitter_t = numpy.array(twitter_data.loc[twitter_data['id'] == idx])[0,-14:]
+            twitter_time_series.append(twitter_t)
+            scholar_time_series.append(scholar_t)
 
     # Initialize some numbers for the statistical tests
     n_time_points = len(twitter_time_series[0])
@@ -88,6 +88,10 @@ if __name__ == '__main__':
     granger = numpy.concatenate([numpy.load('granger_' + str(s) + '.npy') for s in start_indexes], axis=0)
     numpy.save('pearson', pearson)
     numpy.save('granger', granger)
+
+    # Delete the partial matrices
+    for start_index in start_indexes:
+        os.remove('pearson_' + str(start_index) + '.npy')
 
     # Plot the thing
     plt.figure(0)
