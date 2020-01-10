@@ -10,7 +10,7 @@ TODO: Describe the installation process
 
 ## Usage
 
-In order to reproduce the results of part 1, please run the basic_twitter_analysis juypter notebook, which will read in the twitter feature stored in data matrix_reci_final_preprocessed.csv.
+In order to reproduce the results of part 1, please run the basic_twitter_analysis juypter notebook, which will read in the twitter feature stored in data matrix_reci_final_preprocessed.csv. The list of features utilized are given as follows: the number of tweets, number of followers, number of friends, retweet-tweet ratio, number of conference hashtags, number of overall hashtags, number of conference mentions, number of reciprocal researcher followers, number of publications, number of organic tweets, number of global followers, number of global followees, number of researcher followers, ratio of male and female researchers, rate of PhD and professor followers, ratio of reciprocal male and female researcher followers, and ratio of reciprocal phd and professor followers.
 
 To crawl the twitter data, please go to tweet_dumper, it will crawl the twitter data from the list.
 
