@@ -8,10 +8,14 @@ from pathlib import Path
 import time
 
 # Twitter API credentials
-consumer_key    = 'nnOPnOSoOx9jrZl2OxxASZr16'
-consumer_secret = 'bhgjX8S7LDOOHe51qM7qiZ3xKcx4qYRQgko7kgdQ9dR9BMhS2e'
-access_key      = '1201474741250473985-gQWoxus4p40LMao3OH7ZBb7axazojV'
-access_secret   = 'AOfvTfPS1Ailarqnejxxr1GaIePRM5ELoD1m9g7nTk2ig'
+# Since the API crednetials are from one of the group members
+# We afraid it is dangerous to expose these information
+# Therefore, if TAs need to test it, you can either have your own twitter deveoper account
+# Or we can provide the account privately.
+consumer_key    = ''
+consumer_secret = ''
+access_key      = ''
+access_secret   = ''
 
 account = pd.read_csv('matrix_try.csv',usecols=["screen_name"])
 
