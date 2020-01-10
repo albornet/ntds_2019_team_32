@@ -17,4 +17,4 @@ To crawl the twitter data, please go to tweet_dumper, it will crawl the twitter 
 
 ## License
 
-TODO: Write license
+LICENSE
