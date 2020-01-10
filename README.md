@@ -12,7 +12,8 @@ TODO: Describe the installation process
 
 In order to reproduce the results of part 1, please run the basic_twitter_analysis juypter notebook, which will read in the twitter feature stored in data matrix_reci_final_preprocessed.csv.
 
-TODO: For part 2, ...
+To crawl the twitter data, please go to tweet_dumper, it will crawl the twitter data from the list.
+
 
 ## License
 
