@@ -8,8 +8,8 @@ Until recently, researchers have mostly relied on classical publication tools to
 
 In order to reproduce the results of part 1, please run the basic_twitter_analysis juypter notebook, which will read in the twitter feature stored in data matrix_reci_final_preprocessed.csv. The list of features utilized are given as follows: the number of tweets, number of followers, number of friends, retweet-tweet ratio, number of conference hashtags, number of overall hashtags, number of conference mentions, number of reciprocal researcher followers, number of publications, number of organic tweets, number of global followers, number of global followees, number of researcher followers, ratio of male and female researchers, rate of PhD and professor followers, ratio of reciprocal male and female researcher followers, and ratio of reciprocal phd and professor followers.
 
-To crawl the twitter data, please go to tweet_dumper, it will crawl the twitter data from the list.
+To scrape the twitter data, please go to tweet_dumper, it will crawl the twitter data from the list.
 
-## License
+To scrape the scholar data, simply run scholar_scraper.py (however, if you don't have a VPN service, this will be almost impossible).
 
-LICENSE
+To generate the granger causality matrix, run granger_correlation.py, and analyse it with granger_explore.py. To generate the results with the classifier, first run co_authorship.py to have the graph filter network, and then run graph_filtering.py, which will compute the graph filter and train the classifier both with and without the filtering.
