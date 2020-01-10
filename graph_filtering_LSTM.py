@@ -60,45 +60,46 @@ def polynomial_graph_filter_response(coeff: numpy.array, lam: numpy.ndarray):
     return response
 
 
-class LogisticRegression(torch.nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim=64):
-        super(LogisticRegression, self).__init__()
-        self.encode = torch.nn.Linear(input_dim,  hidden_dim)
-        self.decode = torch.nn.Linear(hidden_dim, output_dim)
-        self.relu   = torch.nn.ReLU()
-        self.drop   = torch.nn.Dropout(0.5) 
-
-
-    def forward(self, x):
-        latent = self.drop(self.relu(self.encode(x)))
-        output = self.relu(self.decode(latent))
-        return output
-
-
-class ConvolutionalRegression(torch.nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim=64, kernel_size=3):
-        super(ConvolutionalRegression, self).__init__()
-        self.conv1      = torch.nn.Conv1d( 1,            hidden_dim//4, kernel_size=kernel_size)
-        self.conv2      = torch.nn.Conv1d(hidden_dim//4, hidden_dim,    kernel_size=kernel_size)
-        self.encode_dim = hidden_dim*(input_dim - 2*(kernel_size-1))
-        self.decode     = torch.nn.Linear(self.encode_dim, output_dim)
-        self.relu       = torch.nn.ReLU()
-        self.drop       = torch.nn.Dropout(0.5) 
+class TimeSeriesPredictor(torch.nn.Module):
+    def __init__(self, input_dim, output_dim, hidden_dim=1):
+        super(TimeSeriesPredictor, self).__init__()
+        self.input_dim  = input_dim
+        self.output_dim = output_dim
+        self.hidden_dim = hidden_dim
+        self.lstm       = torch.nn.LSTM(input_size=1, hidden_size=hidden_dim, batch_first=True)
+        self.linear     = torch.nn.Linear(hidden_dim, 1)
+        # self.decoder    = torch.nn.Linear(input_dim, output_dim)
+        self.conv1      = torch.nn.Conv1d(1, 1, kernel_size=3,  stride=2, padding=0)
+        self.conv2      = torch.nn.Conv1d(1, 1, kernel_size=7,  stride=2, padding=0)
+        self.conv3      = torch.nn.Conv1d(1, 1, kernel_size=13, stride=2, padding=0)
+        # self.states = (torch.zeros(1,1,self.hidden_dim), torch.zeros(1,1,self.hidden_dim))
 
     def forward(self, x):
-        x = x.unsqueeze(1)
-        x = self.relu(self.conv1(x))
-        x = self.relu(self.conv2(x))
-        x = x.view([-1,self.encode_dim])
-        x = self.drop(x)
-        output = self.relu(self.decode(x))
-        return output
+        
+        # states = self.init_states()
+        x = self.lstm(x.unsqueeze(-1))[0]
+        if self.hidden_dim > 1:
+            x = self.linear(x)
+        x = self.conv1(x.permute(0,2,1))
+        x = self.conv2(x)
+        x = self.conv3(x)
+        return x.squeeze()
 
 
-def evaluate(bt_size, features, labels, model, crit):
+def interpolate_scholar(time_series):
+    t  = numpy.arange(0.5, 14.5, 1.0 )  # last year -t corresponds to "June-July 2019"
+    ts = numpy.arange(0.0, 14.0, 1/12)  # last month-t corresponds to "December  2019"
+    ys = []
+    for y in time_series:
+        cs = CubicSpline(t,y)
+        ys.append((cs(ts)/12).astype(int))
+
+    return ys
+
+
+def evaluate(bt_size, features, labels, model, crit, plot_stuff=False):
     with torch.no_grad():
         n_smpl = features.shape[0]
-        n_hits = torch.tensor(0)
         losses = torch.tensor(0.0)
         for i_start in numpy.arange(0, n_smpl, bt_size):
                 
@@ -107,21 +108,21 @@ def evaluate(bt_size, features, labels, model, crit):
             labs   = labels[  i_start:i_end]
             output = model(feats)
             loss   = crit(output, labs)
-            n_hits += (output.argmax(axis=1) == labs).int().sum()
             losses += bt_size*loss
 
-        return 100*n_hits/n_smpl, losses/n_smpl
+        # Plot just once
+        if plot_stuff:
+            for i in range(10):
+                plt.plot(output[i], 'r')
+                plt.plot(labels[i], 'b')
+                plt.show()
+
+        return losses/n_smpl
 
 
-def train(bt_size, features, labels, model, crit, optim, sched, n_epochs, plot_color=None):
-    plot_train_loss = []
-    plot_valid_loss = []
-    plot_train_hitr = []
-    plot_valid_hitr = []
-    plot_epoch = []
+def train(bt_size, features, labels, model, crit, optim, sched, n_epochs):
     for epoch in range(int(n_epochs)):
         n_smpl = features.shape[0]
-        n_hits = torch.tensor(0)
         losses = torch.tensor(0.0)
         for i_start in numpy.arange(0, n_smpl, bt_size):
             
@@ -134,34 +135,17 @@ def train(bt_size, features, labels, model, crit, optim, sched, n_epochs, plot_c
             loss   = crit(output, labs)
             loss.backward()
             optim.step()
-            n_hits += (output.argmax(axis=1) == labs).int().sum()
             losses += bt_size*loss
 
-        if epoch % (n_epochs//100) == 0:
-            train_hit_rate  = 100*n_hits/n_smpl
+        if epoch % (n_epochs//10) == 0:
             train_mean_loss = losses/n_smpl
-            valid_hit_rate, valid_mean_loss = evaluate(bt_size, valid_features, valid_labels, model, crit)
+            valid_mean_loss = evaluate(bt_size, valid_features, valid_labels, model, crit)
             print('\nEpoch %3i' % (epoch))
-            print('\tTraining:   Loss %4.3f - Hit rate %3.1f%%' % (train_mean_loss, train_hit_rate))
-            print('\tValidation: Loss %4.3f - Hit rate %3.1f%%' % (valid_mean_loss, valid_hit_rate))
-            if epoch != n_epochs-(n_epochs//100):
+            print('\tTraining   loss %4.3f' % (train_mean_loss))
+            print('\tValidation loss %4.3f' % (valid_mean_loss))
+            if epoch != n_epochs-(n_epochs//10):
                 sys.stdout.write("\033[4F")
-            plot_train_loss.append(train_mean_loss.detach().numpy())
-            plot_valid_loss.append(valid_mean_loss.detach().numpy())
-            plot_train_hitr.append(train_hit_rate.detach().numpy())
-            plot_valid_hitr.append(valid_hit_rate.detach().numpy())
-            plot_epoch.append(epoch)
 
-    if plot_color is not None:
-        graph_label = ' (without graph)' if plot_color=='b' else ' (with graph)'
-        plt.figure(1)
-        plt.plot(plot_epoch, plot_train_loss, plot_color+'-' , label='Training loss'+graph_label)
-        plt.plot(plot_epoch, plot_valid_loss, plot_color+'--', label='Validation loss'+graph_label)
-        plt.legend()
-        plt.figure(2)
-        plt.plot(plot_epoch, plot_train_hitr, plot_color+'-' , label='Training hit rate'+graph_label)
-        plt.plot(plot_epoch, plot_valid_hitr, plot_color+'--', label='Validation hit rate'+graph_label)
-        plt.legend()
 
 # Load the datasets (twitter features, scholar labels, coauthorship graph)
 remove_lonely_authors = False
@@ -172,45 +156,45 @@ if remove_lonely_authors:
     no_coauth = numpy.where(numpy.sum(adjacency, axis=0) != 0)[0]
     adjacency = adjacency[no_coauth][:, no_coauth]
 
+
 # Create the input features and target labels
 twitter_signals  = twitter_data[:,   1:]  # input features
+twitter_signals  = (twitter_signals - twitter_signals.min())/twitter_signals.std()
 scholar_signals  = scholar_data[:, -14:]  # very hard labels
-scholar_hindexes = scholar_data[:,   3 ]  # easier labels
+scholar_signals  = (scholar_signals - scholar_signals.min())/scholar_signals.std()
+# scholar_signals  = interpolate_scholar(scholar_signals)
 
-scholar_labels = (scholar_hindexes/10).astype(int)  # every 10, label changes
-# scholar_labels = scholar_signals
-n_classes = scholar_labels.max()+1
-n_samples = scholar_labels.shape[0]
+scholar_labels = scholar_signals
+n_samples      = scholar_labels.shape[0]
 
 # Create the training, validation and testing sets
-n_train = 1000
-n_valid = 1000
+n_train = 2000
+n_valid = 500
 n_testt = n_samples-(n_train+n_valid)
-train_features = torch.FloatTensor(twitter_signals[               :n_train        ].astype(float))
-train_labels   = torch.LongTensor( scholar_labels[                :n_train        ].astype(int  ))
-valid_features = torch.FloatTensor(twitter_signals[n_train:        n_train+n_valid].astype(float))
-valid_labels   = torch.LongTensor( scholar_labels[ n_train:        n_train+n_valid].astype(int  ))
-testt_features = torch.FloatTensor(twitter_signals[n_train+n_valid:               ].astype(float))
-testt_labels   = torch.LongTensor( scholar_labels[ n_train+n_valid:               ].astype(int  ))
+train_features = torch.FloatTensor(twitter_signals[                :n_train        ].astype(float))
+train_labels   = torch.FloatTensor( scholar_labels[                :n_train        ].astype(float))
+valid_features = torch.FloatTensor(twitter_signals[n_train:         n_train+n_valid].astype(float))
+valid_labels   = torch.FloatTensor( scholar_labels[n_train:         n_train+n_valid].astype(float))
+testt_features = torch.FloatTensor(twitter_signals[n_train+n_valid:                ].astype(float))
+testt_labels   = torch.FloatTensor( scholar_labels[n_train+n_valid:                ].astype(float))
 
 # Some useful numbers
 inn_dim  = train_features.shape[1]
-out_dim  = n_classes
-lr_rate  = 1e-5
+out_dim  = train_labels.shape[1]
+lr_rate  = 1e-4
 bt_size  = 100
-n_epochs = 200
+n_epochs = 1000
 
 # Create a native model and its learning instances
-# model = LogisticRegression(inn_dim, out_dim)
-model = ConvolutionalRegression(inn_dim, out_dim)
-crit  = torch.nn.CrossEntropyLoss()
+model = TimeSeriesPredictor(inn_dim, out_dim)
+crit  = torch.nn.MSELoss()
 optim = torch.optim.Adam(model.parameters(), lr=lr_rate)
 sched = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, 100)
 
 # Train and test the classifier
-train(bt_size, train_features, train_labels, model, crit, optim, sched, n_epochs, plot_color='b')
-test_hit_rate, test_mean_loss = evaluate(bt_size, testt_features, testt_labels, model, crit)
-print('\nTesting: Loss %4.3f - Hit rate %3.1f%%\n' % (test_mean_loss, test_hit_rate))
+train(bt_size, train_features, train_labels, model, crit, optim, sched, n_epochs)
+test_mean_loss = evaluate(bt_size, testt_features, testt_labels, model, crit, plot_stuff=True)
+print('\nTesting: Loss %4.3f\n' % (test_mean_loss))
 
 # Redo the spectral analysis
 redo_spectral = True
@@ -244,14 +228,12 @@ valid_features_gcn  = torch.FloatTensor(twitter_signals_gcn[n_train:        n_tr
 testt_features_gcn  = torch.FloatTensor(twitter_signals_gcn[n_train+n_valid:               ].astype(float))
 
 # Create a new model that will use the graph knowledge
-# model_gcn = LogisticRegression(inn_dim, out_dim)
-model_gcn = ConvolutionalRegression(inn_dim, out_dim)
-crit_gcn  = torch.nn.CrossEntropyLoss()
+model_gcn = TimeSeriesPredictor(inn_dim, out_dim)
+crit_gcn  = torch.nn.MSELoss()
 optim_gcn = torch.optim.Adam(model_gcn.parameters(), lr=lr_rate)
 sched_gcn = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, 100)
 
 # Train and test the classifier
-train(bt_size, train_features_gcn, train_labels, model_gcn, crit_gcn, optim_gcn, sched_gcn, n_epochs, plot_color='r')
-test_hit_rate, test_mean_loss = evaluate(bt_size, testt_features_gcn, testt_labels, model_gcn, crit_gcn)
-print('\nTesting: Loss %4.3f - Hit rate %3.1f%%\n' % (test_mean_loss, test_hit_rate))
-plt.show()
+train(bt_size, train_features_gcn, train_labels, model_gcn, crit_gcn, optim_gcn, sched_gcn, n_epochs)
+test_mean_loss = evaluate(bt_size, testt_features_gcn, testt_labels, model_gcn, crit_gcn, plot_stuff=True)
+print('\nTesting: Loss %4.3f\n' % (test_mean_loss))
