@@ -72,6 +72,6 @@ def get_all_tweets(screen_name):
 if __name__ == '__main__':
     
     account_name = account.screen_name
-    [get_all_tweets(aa)  for aa in account_name[4868:]]
+    [get_all_tweets(aa)  for aa in account_name[0:]]
     
     
